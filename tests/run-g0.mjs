@@ -54,6 +54,7 @@ function flag(name) { return args.includes(`--${name}`); }
 const GROUP = opt('group', 'both'); // same | cross | both
 const RUNS = Number(opt('runs', 20));
 const KEEP = flag('keep-windows');
+const NOLAUNCH = flag('no-launch'); // reuse already-open sandbox windows
 
 // ------------------------------------------------------------------ hub conn
 
@@ -96,6 +97,7 @@ function waitFor(pred, timeoutMs, pollMs = 60) {
 // Track screen snapshots + extension registrations.
 let latestSnapshot = null;
 const windows = new Map(); // windowId -> {hwnd, terminals:Map}
+const sandboxWindowIds = new Map(); // sandbox name -> windowId (from bind-force)
 on('snapshot', (s) => { latestSnapshot = s; });
 on('window-bound', (m) => {
   const w = windows.get(m.windowId) || { terminals: new Map() };
@@ -112,18 +114,39 @@ on('run-result', (r) => { runResults.push(r); });
 
 // ---------------------------------------------------------------- helpers
 
-function launchWindows() {
-  const cmd = (sandbox) => [
+async function launchWindows() {
+  const cmd = (sandbox, isolated) => [
     '--extensionDevelopmentPath', EXT,
+    ...(isolated ? ['--user-data-dir', path.join(os.tmpdir(), 'vscode-g0-b')] : []),
     '--new-window',
     path.join(ROOT, 'tests/fixtures', sandbox),
     '--disable-workspace-trust',
   ];
   const env = { ...process.env, VIBE_AUTOTEST: '1' };
-  console.log('[run-g0] launching VS Code window A (sandbox-A) + B (sandbox-B)');
-  const a = spawn('code', cmd('sandbox-A'), { shell: true, env, detached: true, stdio: 'ignore' });
-  const b = spawn('code', cmd('sandbox-B'), { shell: true, env, detached: true, stdio: 'ignore' });
-  a.unref(); b.unref();
+  // Windows already up are reused. New windows launch SERIALLY: concurrent
+  // `code --new-window` calls race inside the single-instance CLI and lose.
+  // Window B uses an ISOLATED user-data-dir instance: new-window requests
+  // forwarded by a busy extension-development host are silently dropped
+  // (observed 3/3 losses), while an isolated instance always opens.
+  const ps1 = path.join(ROOT, 'scripts/ps/activate-window.ps1');
+  const windowUp = (sb) => {
+    const r = spawnSync('powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-TitlePart', sb],
+      { encoding: 'utf8', timeout: 15000 });
+    return (r.stdout || '').includes('ACTIVATED');
+  };
+  const ensure = async (sb, isolated) => {
+    if (await waitFor(() => windowUp(sb), 10000, 2000)) { console.log(`[run-g0] ${sb} window already up`); return true; }
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const p = spawn('code', cmd(sb, isolated), { shell: true, env, detached: true, stdio: 'ignore' });
+      p.unref();
+      if (await waitFor(() => windowUp(sb), isolated ? 90000 : 60000, 3000)) return true;
+      console.log(`[run-g0] ${sb} not up (attempt ${attempt}), respawning...`);
+    }
+    return false;
+  };
+  await ensure('sandbox-A', false);
+  await ensure('sandbox-B', true);
 }
 
 function bindWindows() {
@@ -139,19 +162,37 @@ async function autoBindWindows() {
   const ps1 = path.join(ROOT, 'scripts/ps/activate-window.ps1');
   const deadline = Date.now() + 180000;
   const boundSb = new Set();
+  const hwndOf = (sb) => {
+    const r = spawnSync('powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-List'],
+      { encoding: 'utf8', timeout: 15000 });
+    if (process.env.VIBE_G0_DEBUG) {
+      console.log(`[run-g0] hwndOf(${sb}) status=${r.status} stdoutLines=${(r.stdout || '').split('\n').length} first=${JSON.stringify(((r.stdout || '').split('\n')[0]) || '').slice(0, 160)}`);
+    }
+    for (const line of (r.stdout || '').split(/\r?\n/)) {
+      const m = line.match(/^(\d+) \| (.+)$/);
+      if (m && m[2].includes(sb)) return { hwnd: Number(m[1]), title: m[2] };
+    }
+    return null;
+  };
   while (Date.now() < deadline && boundSb.size < 2) {
     for (const sb of ['sandbox-A', 'sandbox-B']) {
       if (boundSb.has(sb)) continue;
-      const act = spawnSync('powershell.exe',
-        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-TitlePart', sb],
-        { encoding: 'utf8', timeout: 15000 });
-      const line = (act.stdout || '').trim().split('\n').pop() || '';
-      if (!line.startsWith('ACTIVATED')) { console.log(`[run-g0] activate ${sb}: ${line || act.stderr?.trim() || 'no output'}`); continue; }
-      await sleep(600);
-      send({ t: 'test-control', action: 'bind-now' });
+      const w = hwndOf(sb);
+      if (!w) { console.log(`[run-g0] window not visible yet: ${sb}`); continue; }
+      // lock-screen-safe binding: the extension verifies the workspace name
+      // and accepts the title-matched hwnd without a foreground check
+      // (SetForegroundWindow is denied system-wide when no window can be
+      // foreground; activation is validated separately by the big-key flow)
+      send({ t: 'test-control', action: 'bind-force', workspace: sb, hwnd: w.hwnd });
       await sleep(1500);
-      const nowBound = [...windows.values()].filter((w) => w.hwnd).length;
-      if (nowBound > boundSb.size) { boundSb.add(sb); console.log(`[run-g0] auto-bound window for ${sb} (${line.slice(10, 60)})`); }
+      const nowBound = [...windows.values()].filter((x) => x.hwnd).length;
+      if (nowBound > boundSb.size) {
+        boundSb.add(sb);
+        const wid = [...windows.entries()].find(([, x]) => x.hwnd === w.hwnd)?.[0];
+        if (wid) sandboxWindowIds.set(sb, wid);
+        console.log(`[run-g0] auto-bound ${sb} (hwnd ${w.hwnd}, window ${wid})`);
+      } else console.log(`[run-g0] bind-force no effect for ${sb} (hwnd ${w.hwnd})`);
     }
     if (boundSb.size < 2) await sleep(2000);
   }
@@ -174,7 +215,9 @@ async function startSessionIn(binding, sandbox, { duplicateName, extraArgs = '' 
     '<', promptPath,
     extraArgs,
   ].join(' ');
-  send({ t: 'test-control', action: 'start-session', binding, cwd, command, duplicateName });
+  // targeted start: without windowId the hub broadcasts and EVERY bound
+  // window starts a terminal (observed duplicate claude sessions per binding)
+  send({ t: 'test-control', action: 'start-session', binding, cwd, command, duplicateName, windowId: sandboxWindowIds.get(sandbox) || '' });
   return { settingsPath, mcpPath };
 }
 
@@ -188,6 +231,10 @@ function makeSessionSettings(binding) {
   // env injection stays as a second routing path for real sessions.
   const mk = () => [{ hooks: [{ type: 'command', command: `node ${fwd} --binding ${binding}`, timeout: 10 }] }];
   return {
+    // THE forcing rule: --permission-mode manual alone does NOT prompt for
+    // low-risk Bash (observed: echo ran straight through under cmd /c);
+    // permissions.ask is what makes the prompt appear (same as capture).
+    permissions: { ask: ['Bash(echo vibe-ok)'] },
     hooks: {
       SessionStart: mk(), UserPromptSubmit: mk(), PreToolUse: mk(),
       PermissionRequest: mk(), PostToolUse: mk(), PostToolUseFailure: mk(),
@@ -219,7 +266,7 @@ const csvPath = path.join(ROOT, 'docs/evidence/phase1/runs', `g0-auto-${new Date
 
 async function main() {
   mkdirSync(path.dirname(csvPath), { recursive: true });
-  launchWindows();
+  if (!NOLAUNCH) await launchWindows();
   const autoOk = await autoBindWindows().catch(() => false);
   if (!autoOk) bindWindows();
   const okBoth = await waitFor(() => windows.size >= 2 && [...windows.values()].every((w) => w.hwnd), 240000, 500);
@@ -289,7 +336,7 @@ async function runOnce(group, i, scenario) {
   const row = res ? `${runId},${scenario.name},${res.outcome},${binding},${res.vAtPress},${res.t0},${res.t1 ?? ''},${res.t2 ?? ''},${res.msReceipt ?? ''},${res.msVerified ?? ''},${res.activeTerminal},${res.terminalName}` : `${runId},${scenario.name},fail,${binding},,,,,,,,,`;
 
   // release the permission decision (the "user handled it" step)
-  send({ t: 'mcp-allow' }); // routed to this session's mcp server
+  send({ t: 'mcp-allow', binding }); // broadcast by the hub; waiters filter by binding
   await sleep(400);
 
   // wait for card cleared (Stop/session-end) then dispose terminal

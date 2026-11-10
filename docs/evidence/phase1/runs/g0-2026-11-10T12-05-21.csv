@@ -1,0 +1,4 @@
+runId,src,outcome,binding,vAtPress,t0,t1,t2,msReceipt,msVerified,activeTerminal,terminalName
+same-window-01,pipe,activation-denied,g0ce7053,1794312398537,1794312398382,1794312399157,,775,,vibe g0ce7053 (claude),vibe g0ce7053 (claude)
+mix-r1,pipe,activation-denied,mixc89dd8,1794313396843,1794313396685,1794313397413,,728,,vibe mixc89dd8 (claude),vibe mixc89dd8 (claude)
+mix-r2,pipe,fail:no-target-empty,,,1794313471762,,,,,,

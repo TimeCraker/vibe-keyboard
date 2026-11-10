@@ -103,8 +103,9 @@ function handle(msg) {
           if (!l) continue;
           try {
             const m = JSON.parse(l);
-            if (m.t === 'mcp-allow') finish('allow');
-            else if (m.t === 'mcp-deny') finish('deny', 'vibe test deny');
+            const mine = !m.binding || m.binding === BINDING;
+            if (m.t === 'mcp-allow' && mine) finish('allow');
+            else if (m.t === 'mcp-deny' && mine) finish('deny', 'vibe test deny');
           } catch { /* ignore */ }
         }
       });

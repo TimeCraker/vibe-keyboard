@@ -137,6 +137,8 @@ export class Hub {
         c.windowId = String(msg.windowId || c.windowId);
         c.hwnd = Number(msg.hwnd || 0);
         this.log(`window ${short(c.windowId)} bound to HWND ${c.hwnd} (${msg.processName})`);
+        // runners track bindings to drive acceptance flows
+        this.broadcast(msg, (cl) => cl.role === 'runner');
         break;
       }
 
@@ -190,9 +192,21 @@ export class Hub {
         if (action === 'minimize-window') {
           await this.win32.minimize(Number(msg.hwnd || 0));
           this.send(sock, { t: 'test-ack', action });
-        } else if (action === 'bind-now' || action === 'start-session' || action === 'dispose-terminal') {
-          // forward to extensions (they only act in AUTOTEST mode)
-          this.broadcast({ ...msg, t: 'test-control' }, (cl) => cl.role === 'extension');
+        } else if (action === 'activate-window') {
+          // runner-driven activation for auto-binding: goes through the
+          // persistent win32 sidecar because SetForegroundWindow from
+          // pipe-bound processes is denied by the OS foreground lock
+          const hwnd = Number(msg.hwnd || 0);
+          let act = hwnd ? await this.win32.activate(hwnd) : null;
+          if (hwnd && !act?.isFg) act = await this.win32.activateAttach(hwnd);
+          this.send(sock, { t: 'test-ack', action, ok: Boolean(act?.isFg) });
+        } else if (action === 'bind-now' || action === 'start-session' || action === 'dispose-terminal' || action === 'bind-force') {
+          // forward to extensions (they only act in AUTOTEST mode); a
+          // windowId routes to that window only — without it start-session
+          // would run in EVERY window (observed: duplicate claude sessions
+          // under one binding)
+          const wid = msg.windowId ? String(msg.windowId) : '';
+          this.broadcast({ ...msg, t: 'test-control' }, (cl) => cl.role === 'extension' && (!wid || cl.windowId === wid));
           this.send(sock, { t: 'test-ack', action, forwarded: true });
         }
         break;
@@ -246,6 +260,11 @@ export class Hub {
       return this.finishRun(runId || `r${t0}`, src, 'activation-denied', t0, binding, receipt, target.v, t1, t2);
     }
     return this.finishRun(runId || `r${t0}`, src, 'auto', t0, binding, receipt, target.v, t1, t2);
+  }
+
+  /** Push a state-machine snapshot to every connected client. */
+  broadcastSnap(snap) {
+    this.broadcast({ t: 'snapshot', ...snap });
   }
 
   requestFocus(sock, reqId, binding, snapshotV) {

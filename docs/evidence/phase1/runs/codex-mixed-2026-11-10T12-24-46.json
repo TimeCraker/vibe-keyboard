@@ -1,0 +1,38 @@
+{
+  "at": "2026-11-10T12:24:46.823Z",
+  "claudeBinding": "mixc89dd8",
+  "codexBinding": "mixxc5895",
+  "results": [
+    {
+      "phase": "1-enqueue-claude",
+      "ok": true,
+      "v": 4
+    },
+    {
+      "phase": "2-enqueue-codex",
+      "ok": true,
+      "queue": 1,
+      "current": "mixc89dd8"
+    },
+    {
+      "phase": "3-bigkey-oldest",
+      "ok": false,
+      "ms": -1,
+      "outcome": "no-receipt"
+    },
+    {
+      "phase": "4-release-claude",
+      "ok": false
+    },
+    {
+      "phase": "5-bigkey-codex",
+      "ok": false,
+      "ms": -1,
+      "outcome": "no-receipt"
+    },
+    {
+      "phase": "6-release-codex",
+      "ok": true
+    }
+  ]
+}

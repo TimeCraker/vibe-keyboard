@@ -298,6 +298,17 @@ function handleTestControl(msg: HostMessage): void {
     // Automated window binding: the runner activates this window first, so
     // the same checks as the manual command apply (focused + VS Code process).
     void bindWindowCommand();
+  } else if (action === 'bind-force') {
+    // AUTOTEST-only, lock-screen-safe binding: the runner supplies the hwnd
+    // it matched by window title; we verify it points at THIS workspace and
+    // accept it without the foreground check (SetForegroundWindow is denied
+    // system-wide while the session is locked / no window is foreground).
+    const ws = String(msg.workspace || '');
+    const mine = vscode.workspace.name || '';
+    if (ws && mine.includes(ws)) {
+      boundHwnd = Number(msg.hwnd || 0);
+      send({ t: 'window-bound', windowId, hwnd: boundHwnd, focused: vscode.window.state.focused, processName: 'Code (autotest)' });
+    }
   } else if (action === 'dispose-terminal') {
     const binding = String(msg.binding || '');
     const mt = terminals.get(binding);

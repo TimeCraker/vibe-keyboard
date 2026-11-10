@@ -18,6 +18,7 @@ public class VibeWin {
     [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int cmd);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 }
 "@
 
@@ -59,7 +60,25 @@ while ($true) {
             [void][VibeWin]::BringWindowToTop($h)
             [void][VibeWin]::ShowWindow($h, 9)
             $ok = [VibeWin]::SetForegroundWindow($h)
+            Start-Sleep -Milliseconds 80
             $fg = [VibeWin]::GetForegroundWindow()
+            if ($fg -ne $h) {
+                # foreground-lock bypass: a synthetic ALT press makes the OS
+                # treat us as user-interactive, unblocking SetForegroundWindow
+                [void][VibeWin]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+                [void][VibeWin]::SetForegroundWindow($h)
+                [void][VibeWin]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+                Start-Sleep -Milliseconds 100
+                $fg = [VibeWin]::GetForegroundWindow()
+            }
+            if ($fg -ne $h) {
+                # last resort: min+restore forces activation (visible flicker)
+                [void][VibeWin]::ShowWindow($h, 6)
+                Start-Sleep -Milliseconds 80
+                [void][VibeWin]::ShowWindow($h, 9)
+                Start-Sleep -Milliseconds 150
+                $fg = [VibeWin]::GetForegroundWindow()
+            }
             [void][VibeWin]::AttachThreadInput($me, $fgThread, $false)
             [void][VibeWin]::AttachThreadInput($me, $tThread, $false)
             Write-Output ("ACTA|{0}|{1}" -f ($(if ($ok) {1} else {0})), ($(if ($fg -eq $h) {1} else {0})))

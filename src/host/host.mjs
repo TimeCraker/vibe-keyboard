@@ -88,7 +88,10 @@ const snapJsonl = path.join(EVIDENCE, 'screen-snapshots.jsonl');
 const isTTY = process.stdout.isTTY;
 const sm = new StateMachine({
   expireMs: expireMin * 60 * 1000,
-  onSnapshot: (snap) => screen.update(snap),
+  // dual sink: render the simulated screen AND push the snapshot to every
+  // hub client (runners gate acceptance steps on latestSnapshot; without
+  // the push they only ever see the initial snapshot from their hello)
+  onSnapshot: (snap) => { screen.update(snap); hub?.broadcastSnap(snap); },
 });
 const screen = new SimScreen({ jsonlPath: snapJsonl, render: isTTY });
 

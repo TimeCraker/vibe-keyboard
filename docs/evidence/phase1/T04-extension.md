@@ -15,7 +15,8 @@
 - 激活即连 `\\.\pipe\vibe-keyboard-hub`，每窗口实例独立 `hello`（随机 windowId）；断线 2s 重连，重连后重报 window-bound + 终端清单。
 - `terminal add/remove`：绑定 ↔ Terminal 对象映射；终端关闭自动上报 remove。
 - `focus-request`（一次性 reqId，跨重连不重放）：`Terminal.show(false)` → 150ms 后回报**实际选中终端**（`activeTerminal`），错选时回执带 `active-terminal-mismatch`，由宿主裁决。
-- AUTOTEST 模式（环境变量 `VIBE_AUTOTEST=1`）：接受 `start-session / dispose-terminal / bind-now` 测试控制。
+- AUTOTEST 模式（环境变量 `VIBE_AUTOTEST=1`）：接受 `start-session / dispose-terminal / bind-now / bind-force` 测试控制。`bind-force` 为锁屏安全绑定（2026-11-10 实测补充）：runner 按窗口标题枚举供 hwnd，扩展按 `workspace.name` 自证匹配后回 `window-bound`，跳过前台校验——因 SetForegroundWindow 在无前台会话（锁屏/Idle，`FG|0|0`）下被平台级拒绝，绑定与前台激活解耦后锁屏下全链路其余环节可验。
+- 断线重连后自动重报 `window-bound` 与终端清单（宿主日志实测：重连即重报）。
 
 ## 设计要点
 

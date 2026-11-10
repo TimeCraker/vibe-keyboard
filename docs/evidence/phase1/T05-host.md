@@ -24,7 +24,7 @@
 - **回跳口径**：`bigKey()` 为唯一入口，三种触发（热键 / 宿主控制台 Enter、Space / 管道 bigkey）同路径；t0=触发，t1=扩展回执，t2=前台 HWND 核对通过。产出 `run-result{outcome: auto|activation-denied|fail:*}` 并逐行写 CSV。
 - **版本核对**：快照 `v` 仅随卡片内容变化递增；大键按触发时 `v` 校验当前目标，防过期错切。
 - **断线路由清理**：扩展断开只清聚焦路由，会话状态保留（Hook 事件仍可送达），重连重新登记。
-- **Windows 激活限制**：SetForegroundWindow 被拒时依次尝试 AttachThreadInput 回退；仍失败记 `activation-denied`（单独计数，不算自动成功也不算失败）。
+- **Windows 激活限制**：SetForegroundWindow 被拒时依次尝试 AttachThreadInput → ALT 键欺骗（keybd_event 解锁前台锁）→ 最小化+还原强制激活；仍失败记 `activation-denied`（单独计数，不算自动成功也不算失败）。**锁屏/无人会话实测（2026-11-10）**：`FG|0|0|Idle`（前台窗口为 NULL）时三级兜底全部无效（`ACTA|0|0`），属平台级拒绝——前台切换验证必须用户在场；绑定环节改用 `bind-force`（runner 按窗口标题供 hwnd、扩展按 workspace 名自证，跳过前台校验，仅 AUTOTEST），锁屏下全链路其余环节可验。
 
 ## 运行
 
@@ -46,5 +46,5 @@ node src/host/host.mjs replay <jsonl>  # 重放脱敏样本，输出转换流
 
 ## 已验证 / 未验证
 
-- 已验证：管道收发与快照（假事件冒烟）；状态机重放 11/11；转发器限时与不可达静默；扩展 tsc+esbuild 零错误。
-- 未验证（待 T06 实跑）：真实热键注册与按下、真实会话→卡片→大键→前台核对的端到端计时、激活受限计数。
+- 已验证：管道收发与快照（假事件冒烟）；状态机重放 14/14（含 3 个 Codex 适配器用例）；转发器限时与不可达静默；扩展 tsc+esbuild 零错误；真实样本 replay（T03 五场景全对）；`mcp-allow/deny` 为广播、等待方按 `binding` 字段过滤（混合双等待不串扰）；热键注册（宿主日志 `hotkey ready`）；VS Code 双窗串行启动（并发 `code --new-window` 有单实例竞争，第二个静默丢失）。
+- 未验证（待 T06 实跑）：真实会话→卡片→大键→前台核对的端到端计时（需用户解锁在场）、20×2 计量与 P95。
