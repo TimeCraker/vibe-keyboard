@@ -2,3 +2,5 @@ runId,src,outcome,binding,vAtPress,t0,t1,t2,msReceipt,msVerified,activeTerminal,
 same-window-01,pipe,activation-denied,g0ce7053,1794312398537,1794312398382,1794312399157,,775,,vibe g0ce7053 (claude),vibe g0ce7053 (claude)
 mix-r1,pipe,activation-denied,mixc89dd8,1794313396843,1794313396685,1794313397413,,728,,vibe mixc89dd8 (claude),vibe mixc89dd8 (claude)
 mix-r2,pipe,fail:no-target-empty,,,1794313471762,,,,,,
+mix-r1,pipe,activation-denied,mixc81eac,1794313803078,1794313802921,1794313803637,,716,,vibe mixc81eac (claude),vibe mixc81eac (claude)
+mix-r2,pipe,activation-denied,mixx31fe9,1794313805839,1794313805685,1794313806373,,688,,vibe mixx31fe9 (claude),vibe mixx31fe9 (claude)

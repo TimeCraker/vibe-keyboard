@@ -16,3 +16,7 @@
 {"v":5,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313413313,"ts":1794313413313}
 {"v":6,"current":{"short":"sandbox-codex","state":"等待权限","stateKey":"waiting","expired":false,"since":1794313610851,"pos":1,"total":1,"binding":"dbgcodx1","agent":"codex"},"queue":1,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313610852,"ts":1794313610852}
 {"v":7,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313657279,"ts":1794313657279}
+{"v":8,"current":{"short":"sandbox-A","state":"等待权限","stateKey":"waiting","expired":false,"since":1794313765268,"pos":1,"total":1,"binding":"mixc81eac","agent":"claude-code"},"queue":1,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313765270,"ts":1794313765270}
+{"v":9,"current":{"short":"sandbox-A","state":"等待权限","stateKey":"waiting","expired":false,"since":1794313765268,"pos":1,"total":2,"binding":"mixc81eac","agent":"claude-code"},"queue":2,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313802489,"ts":1794313802489}
+{"v":10,"current":{"short":"sandbox-codex","state":"等待权限","stateKey":"waiting","expired":false,"since":1794313802489,"pos":1,"total":1,"binding":"mixx31fe9","agent":"codex"},"queue":1,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313805218,"ts":1794313805218}
+{"v":11,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794313848929,"ts":1794313848929}
