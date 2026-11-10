@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+*.log
+*.csv.raw
+.vscode-test/
+obj/
+bin/
+.DS_Store

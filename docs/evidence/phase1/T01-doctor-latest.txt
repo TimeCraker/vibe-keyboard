@@ -1,0 +1,23 @@
+﻿=== Vibe Keyboard doctor 2026-11-10 15:23:14 ===
+
+--- 软件链路 ---
+[OK]   Windows            Microsoft Windows [版本 10.0.26300.9711]
+[OK]   Node.js            v24.16.0
+[MISS] npm                未安装或不在 PATH
+[OK]   VS Code            1.144.1 261c84cb1eddf11235f9e2c921425e9663fbe556 x64
+[MISS] Claude Code        未安装或不在 PATH
+[OK]   PowerShell         5.1.26100.9711
+
+--- .NET（产品目标栈；S0 上位机为 Node 实现，见 T01 证据）---
+[MISS] .NET SDK           未安装或不在 PATH
+
+--- 固件链路（一期硬件线，T01 固件子项）---
+[MISS] CMake              未安装或不在 PATH
+[MISS] Ninja              未安装或不在 PATH
+[MISS] Pico SDK          未发现 ~/.pico-sdk（硬件线并行推进时安装）
+
+--- Codex CLI（混合验证用）---
+[OK]   Codex (Store)     C:\Program Files\WindowsApps\OpenAI.Codex_26.1103.7773.0_x64__2p2nqsd0c76g0\app\Codex.exe
+
+--- 项目工件 ---
+[OK]       VS Code 扩展构建 dist/extension.js

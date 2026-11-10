@@ -1,0 +1,44 @@
+{
+  "name": "vibe-keyboard",
+  "displayName": "Vibe Keyboard",
+  "description": "方屏显示待办会话，大键精准回跳。S0: managed Claude Code terminals + host pipe binding.",
+  "version": "0.1.0",
+  "publisher": "TimeCraker",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contribution": {
+    "commands": [
+      {
+        "command": "vibe.startSession",
+        "title": "Vibe: 启动受管会话 (Start Managed Claude Code Session)"
+      },
+      {
+        "command": "vibe.bindWindow",
+        "title": "Vibe: 绑定本窗口 (Bind This Window)"
+      },
+      {
+        "command": "vibe.showStatus",
+        "title": "Vibe: 显示绑定状态 (Show Binding Status)"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.93.0",
+    "@types/node": "22.x",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}

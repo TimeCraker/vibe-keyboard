@@ -1,0 +1,17 @@
+# Sanitized replay fixtures (shape = forward.mjs output). Binding/session ids
+# are opaque; cwd reduced to basename; no prompts, tool inputs or paths.
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"SessionStart","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1001,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"UserPromptSubmit","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1002,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"PreToolUse","tool":"Bash","toolUseId":"toolu_1","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1003,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"PermissionRequest","tool":"Bash","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1004,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"Notification","tool":"","toolUseId":"","notifyType":"permission_prompt","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1010,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"PostToolUse","tool":"Bash","toolUseId":"toolu_1","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1020,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"Stop","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-A","ts":1021,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"aaaa1111","session":"sess-A","event":"SessionEnd","tool":"","toolUseId":"","notifyType":"","stopReason":"other","errorKind":"","cwdName":"sandbox-A","ts":1022,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"SessionStart","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2001,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"UserPromptSubmit","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2002,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"PreToolUse","tool":"Bash","toolUseId":"toolu_9","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2003,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"PermissionRequest","tool":"Bash","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2004,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"PermissionDenied","tool":"Bash","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2005,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"Stop","tool":"","toolUseId":"","notifyType":"","stopReason":"","errorKind":"","cwdName":"sandbox-B","ts":2006,"fwdMs":4}
+{"t":"hook","src":"claude-code","binding":"bbbb2222","session":"sess-B","event":"SessionEnd","tool":"","toolUseId":"","notifyType":"","stopReason":"other","errorKind":"","cwdName":"sandbox-B","ts":2007,"fwdMs":4}
