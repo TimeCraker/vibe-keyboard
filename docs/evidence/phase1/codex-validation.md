@@ -1,6 +1,6 @@
 # Codex CLI 混合验证（T06 附带项）
 
-日期：2026-11-10 · 状态：进行中（骨架，待实测回填）
+日期：2026-11-10 · 状态：**自动化六阶段通过**（结果 JSON：`runs/codex-mixed-2026-11-10T12-30-49.json`）
 
 ## 一、环境与已知事实
 
@@ -26,6 +26,13 @@
 
 事件名与 Claude Code 同构，`codexAdapter` 修正映射：`SessionStart→started`、`UserPromptSubmit→prompt`、`PreToolUse→tool-start`、`PermissionRequest→permission(→waiting)`、`PostToolUse→tool-end`、`Stop→turn-end`；无对应事件的语义（会话退出、API 失败、用户拒绝）走 unknown / 超时过期兜底并记录缺口。`turn-complete` 旧映射废弃。
 
+## 三·五、混合验证实现（已就绪待实跑）
+
+- `tests/run-codex-mixed.mjs`：单窗双终端（claude + codex）六阶段——claude 入队 → codex 入队 → 大键跳最早项（回执核对选对终端）→ `mcp-allow{binding}` 释放 → 大键跳第二项 → 释放 → 逐次结果 JSON 落 `docs/evidence/phase1/runs/codex-mixed-*.json`。
+- `tests/codex-permission-hook.mjs`：Codex `PermissionRequest` hook——上报宿主等待、监听 `mcp-allow/deny`（**广播消息按 `binding` 字段过滤**，与 Claude MCP server 同一约定，双等待不串扰）、超时按 `--default` 决策；stdout 返回官方 `hookSpecificOutput.decision` 形状。
+- Codex 终端命令：`codex exec --dangerously-bypass-hook-trust -s read-only - < prompt.txt`（stdin 传中文提示词；项目层 `.codex/hooks.json` 由 `tests/fixtures/codex-hooks-template.json` 运行时生成，sandbox-codex gitignored，跑完可删）。
+- 运行前提：宿主 serve 在线 + 一个 VIBE_AUTOTEST=1 的 sandbox-A 窗（run-g0 launch 产出）+ 本机 `codex` 0.167.0。
+
 `codexAdapter`（adapters.mjs）：`turn-complete → turn-end`，其余事件映射 `unknown`。即 Codex 会话在统一状态机里可入队显示为 unknown（可跳转、不可自动解除），除非 hooks/notify 能提供可靠信号。
 
 ## 三、验证计划
@@ -35,6 +42,22 @@
 3. 混合场景：同一扩展管理的两个终端，一个 `claude` 一个 `codex`，各自产生待办 → 验证入队、显示、快捷键分别跳对、处理后状态更新或按缺口规则显示 unknown。
 4. 拿不到的状态：显示 unknown 并在本文件记录版本、复现步骤与缺口。
 
-## 四、实测结果
+## 四、实测结果（2026-11-10 12:30，自动化六阶段）
 
-<!-- 待回填：逐次记录、跳转准确性统计、缺口清单 -->
+单窗双终端（同一 VS Code 窗口：`vibe mixc81eac (claude)` 跑 claude、`vibe mixx31fe9` 跑 codex）：
+
+| 阶段 | 结果 | 关键数据 |
+| --- | --- | --- |
+| 1 claude 入队 | ✅ | waiting 卡片 v=8，MCP permission 通道上报 |
+| 2 codex 入队 | ✅ | queue=2；codex PermissionRequest hook 上报（tool=Bash） |
+| 3 大键跳最旧项（claude） | ✅ | 回执 716ms，activeTerminal 选中 claude 终端（核对一致）；前台激活锁屏拒绝 → activation-denied 单列 |
+| 4 释放 claude | ✅ | `mcp-allow{binding}` 后 current 切到 codex |
+| 5 大键跳 codex | ✅ | 回执 688ms，activeTerminal 选中 codex 终端（**分别跳对实证**）；同上 activation-denied 单列 |
+| 6 释放 codex | ✅ | 队列清空 |
+
+**实测发现**：
+1. `-s read-only` 沙箱下 `echo` 免审批直跑（无 PermissionRequest）；改用写文件命令（`echo ... > proof.txt`）被沙箱拦 → 提升审批 → PermissionRequest hook 触发。等待信号依赖"需要提升权限的操作"。
+2. codex hooks 项目层 + `--dangerously-bypass-hook-trust` 在 codex exec 非交互下生效（8 事件全序到达宿主，fwdMs 同级）。
+3. 终端名后缀 "(claude)" 是扩展建终端时的固定标签，混合场景下 codex 终端也带此后缀（仅显示瑕疵，回执按终端对象核对不受影响）——后续按 agent 参数化。
+
+**缺口（按规范单列）**：Codex 无 `SessionEnd`（会话退出靠 Stop+超时）、无 `StopFailure`（API 失败显示 unknown）、无 `PermissionDenied`（用户拒绝语义不可采集）——均已在适配器以 unknown/过期兜底并记录。前台激活与 G0 同受锁屏限制，解锁后与 20×2 一并实测。

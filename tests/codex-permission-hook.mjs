@@ -62,8 +62,11 @@ process.stdin.on('end', () => {
       if (!line.trim()) continue;
       let m = null;
       try { m = JSON.parse(line); } catch { continue; }
-      if (m.t === 'mcp-allow') { decision = 'allow'; break; }
-      if (m.t === 'mcp-deny') { decision = 'deny'; break; }
+      // mcp-allow/deny are BROADCAST by the hub to all permission waiters —
+      // only accept decisions addressed to this binding
+      const mine = !m.binding || m.binding === BINDING;
+      if (m.t === 'mcp-allow' && mine) { decision = 'allow'; break; }
+      if (m.t === 'mcp-deny' && mine) { decision = 'deny'; break; }
     }
     if (decision) { clearTimeout(timer); try { sock.end(); } catch {} finish(); }
   });

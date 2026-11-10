@@ -1,0 +1,43 @@
+{
+  "at": "2026-11-10T12:30:49.418Z",
+  "claudeBinding": "mixc81eac",
+  "codexBinding": "mixx31fe9",
+  "results": [
+    {
+      "phase": "1-enqueue-claude",
+      "ok": true,
+      "v": 8
+    },
+    {
+      "phase": "2-enqueue-codex",
+      "ok": true,
+      "queue": 2,
+      "current": "mixc81eac"
+    },
+    {
+      "phase": "3-bigkey-oldest",
+      "ok": true,
+      "outcome": "activation-denied",
+      "msReceipt": 716,
+      "activeTerminal": "vibe mixc81eac (claude)",
+      "terminalName": "vibe mixc81eac (claude)"
+    },
+    {
+      "phase": "4-release-claude",
+      "ok": true,
+      "current": "mixx31fe9"
+    },
+    {
+      "phase": "5-bigkey-codex",
+      "ok": true,
+      "outcome": "activation-denied",
+      "msReceipt": 688,
+      "activeTerminal": "vibe mixx31fe9 (claude)",
+      "terminalName": "vibe mixx31fe9 (claude)"
+    },
+    {
+      "phase": "6-release-codex",
+      "ok": true
+    }
+  ]
+}
