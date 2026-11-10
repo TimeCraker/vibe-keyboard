@@ -9,7 +9,14 @@
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Collections.Generic;
 public class VibeWin {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lp);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lp);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder sb, int max);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextLength(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
@@ -19,6 +26,22 @@ public class VibeWin {
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+    public static List<string> VisibleWindows() {
+        var list = new List<string>();
+        EnumWindows((h, lp) => {
+            if (IsWindowVisible(h)) {
+                int len = GetWindowTextLength(h);
+                if (len > 0) {
+                    var sb = new StringBuilder(len + 1);
+                    GetWindowText(h, sb, sb.Capacity);
+                    list.Add(h.ToInt64().ToString() + " | " + sb.ToString());
+                }
+            }
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
 }
 "@
 
@@ -95,6 +118,11 @@ while ($true) {
                 if ($_.MainWindowHandle -ne 0) { $found = $_.MainWindowHandle.ToInt64() }
             }
             Write-Output ("PIDHW|{0}" -f $found)
+        }
+        "list_windows" {
+            # one line per visible top-level window: "<hwnd> | <title>"
+            foreach ($line in [VibeWin]::VisibleWindows()) { Write-Output ("W|$line") }
+            Write-Output "WEND"
         }
         "quit" {
             Write-Output "BYE"

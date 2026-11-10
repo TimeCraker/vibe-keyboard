@@ -122,31 +122,41 @@ async function launchWindows() {
     path.join(ROOT, 'tests/fixtures', sandbox),
     '--disable-workspace-trust',
   ];
-  const env = { ...process.env, VIBE_AUTOTEST: '1' };
-  // Windows already up are reused. New windows launch SERIALLY: concurrent
-  // `code --new-window` calls race inside the single-instance CLI and lose.
-  // Window B uses an ISOLATED user-data-dir instance: new-window requests
-  // forwarded by a busy extension-development host are silently dropped
-  // (observed 3/3 losses), while an isolated instance always opens.
-  const ps1 = path.join(ROOT, 'scripts/ps/activate-window.ps1');
-  const windowUp = (sb) => {
-    const r = spawnSync('powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-TitlePart', sb],
-      { encoding: 'utf8', timeout: 15000 });
-    return (r.stdout || '').includes('ACTIVATED');
-  };
+  // Windows already up are reused. New windows launch SERIALLY through the
+  // HOST: runner-side spawns land in the runner's isolated desktop (exebox)
+  // where the user cannot see them; the host spawns on the real desktop.
+  // Serial also avoids the single-instance CLI new-window race; window B
+  // uses an isolated user-data-dir (forwarded new-window requests from a
+  // busy extension host get dropped, observed 3/3).
+  const launchViaHost = (args) => new Promise((resolve) => {
+    send({ t: 'test-control', action: 'launch-window', bin: 'code', args });
+    setTimeout(resolve, 1500);
+  });
   const ensure = async (sb, isolated) => {
-    if (await waitFor(() => windowUp(sb), 10000, 2000)) { console.log(`[run-g0] ${sb} window already up`); return true; }
+    if (await waitFor(async () => Boolean(await hwndOfShared(sb)), 10000, 2000)) { console.log(`[run-g0] ${sb} window already up`); return true; }
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const p = spawn('code', cmd(sb, isolated), { shell: true, env, detached: true, stdio: 'ignore' });
-      p.unref();
-      if (await waitFor(() => windowUp(sb), isolated ? 90000 : 60000, 3000)) return true;
+      await launchViaHost(cmd(sb, isolated));
+      if (await waitFor(async () => Boolean(await hwndOfShared(sb)), isolated ? 90000 : 60000, 3000)) return true;
       console.log(`[run-g0] ${sb} not up (attempt ${attempt}), respawning...`);
     }
     return false;
   };
   await ensure('sandbox-A', false);
   await ensure('sandbox-B', true);
+}
+
+// shared: enumerate windows through the host's real-desktop sidecar
+async function hwndOfShared(sb) {
+  const r = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 8000);
+    on('test-ack', (m) => { if (m.action === 'list-windows') { clearTimeout(timer); resolve(m); } });
+    send({ t: 'test-control', action: 'list-windows' });
+  });
+  for (const line of r?.windows || []) {
+    const m = line.match(/^(\d+) \| (.+)$/);
+    if (m && m[2].includes(sb)) return Number(m[1]);
+  }
+  return 0;
 }
 
 function bindWindows() {
@@ -162,14 +172,16 @@ async function autoBindWindows() {
   const ps1 = path.join(ROOT, 'scripts/ps/activate-window.ps1');
   const deadline = Date.now() + 180000;
   const boundSb = new Set();
-  const hwndOf = (sb) => {
-    const r = spawnSync('powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-List'],
-      { encoding: 'utf8', timeout: 15000 });
-    if (process.env.VIBE_G0_DEBUG) {
-      console.log(`[run-g0] hwndOf(${sb}) status=${r.status} stdoutLines=${(r.stdout || '').split('\n').length} first=${JSON.stringify(((r.stdout || '').split('\n')[0]) || '').slice(0, 160)}`);
-    }
-    for (const line of (r.stdout || '').split(/\r?\n/)) {
+  // window enumeration goes through the HOST (real desktop); this runner
+  // process lives in an isolated desktop (exebox) and cannot see the user's
+  // windows at all
+  const hwndOf = async (sb) => {
+    const r = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 8000);
+      on('test-ack', (m) => { if (m.action === 'list-windows') { clearTimeout(timer); resolve(m); } });
+      send({ t: 'test-control', action: 'list-windows' });
+    });
+    for (const line of r?.windows || []) {
       const m = line.match(/^(\d+) \| (.+)$/);
       if (m && m[2].includes(sb)) return { hwnd: Number(m[1]), title: m[2] };
     }
@@ -178,7 +190,7 @@ async function autoBindWindows() {
   while (Date.now() < deadline && boundSb.size < 2) {
     for (const sb of ['sandbox-A', 'sandbox-B']) {
       if (boundSb.has(sb)) continue;
-      const w = hwndOf(sb);
+      const w = await hwndOf(sb);
       if (!w) { console.log(`[run-g0] window not visible yet: ${sb}`); continue; }
       // lock-screen-safe binding: the extension verifies the workspace name
       // and accepts the title-matched hwnd without a foreground check

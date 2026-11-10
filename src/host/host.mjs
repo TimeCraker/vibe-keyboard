@@ -141,6 +141,17 @@ const win32 = {
     const [, hwnd = '0', pid = '0', proc = ''] = r.split('|');
     return { hwnd: Number(hwnd), pid: Number(pid), proc };
   },
+  // multi-line reply: collect W| lines until WEND
+  async listWindows() {
+    const out = [];
+    for (let i = 0; i < 80; i++) {
+      const r = await wcmd('list_windows');
+      if (r === 'TIMEOUT') break;
+      if (r === 'WEND') break;
+      if (r.startsWith('W|')) out.push(r.slice(2));
+    }
+    return out;
+  },
   async minimize(hwnd) { await wcmd(`minimize ${hwnd}`); },
 };
 

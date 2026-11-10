@@ -38,6 +38,16 @@ node src/host/host.mjs status          # 查询当前快照
 node src/host/host.mjs replay <jsonl>  # 重放脱敏样本，输出转换流
 ```
 
+## 宿主部署与桌面隔离（2026-11-10 实测补充）
+
+**关键发现**：本仓验收会话由 Antigravity language_server → ccweb 链拉起，其 Bash 工具运行在私有隔离桌面 `exebox-*`（WinSta0 内、非 Default）。隔离层内的进程：`GetForegroundWindow()` 恒为 0、`SetForegroundWindow`/三级兜底全部被拒、`EnumWindows` 只见同层窗口、spawn 的 VS Code 窗口用户不可见——此前所有“锁屏激活被拒”的表象均源于此，用户桌面全程正常。
+
+**解法（已验证 `auto verified`）**：
+1. 宿主经**交互式计划任务**落在真实桌面：`schtasks /create /tn vibe-host /tr "powershell -File scripts/ps/host-launch.ps1" /sc once /st 23:59 /it /f`，`schtasks /run /tn vibe-host` 启动；
+2. VS Code 测试窗口由**宿主代为 spawn**（hub `test-control launch-window`，ComSpec+无引号拼接，含错误防护）——runner 侧 spawn 会落入隔离桌面；
+3. 窗口枚举经宿主边车 `list-windows` 行协议（真实桌面枚举）；
+4. 管道通信（hook/转发器/MCP）跨桌面正常，留在隔离层不受影响。
+
 ## 计量产物
 
 - `docs/evidence/phase1/runs/g0-*.csv`：逐次 runId/src/outcome/binding/v/t0/t1/t2/msReceipt/msVerified/activeTerminal

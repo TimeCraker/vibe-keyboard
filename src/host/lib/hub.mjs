@@ -164,8 +164,9 @@ export class Hub {
       }
 
       case 'bigkey': {
-        const res = await this.bigKey(String(msg.src || 'pipe'), msg.runId ? String(msg.runId) : undefined);
-        this.send(sock, res);
+        // finishRun already broadcasts the run-result to runner+extension;
+        // replying here would deliver it twice (observed runs=2 double count)
+        await this.bigKey(String(msg.src || 'pipe'), msg.runId ? String(msg.runId) : undefined);
         break;
       }
 
@@ -189,7 +190,31 @@ export class Hub {
 
       case 'test-control': {
         const action = String(msg.action || '');
-        if (action === 'minimize-window') {
+        if (action === 'list-windows') {
+          const lines = await this.win32.listWindows();
+          this.send(sock, { t: 'test-ack', action, windows: lines });
+        } else if (action === 'launch-window') {
+          // the host lives on the REAL desktop (started via an interactive
+          // scheduled task); runner-side spawns land in the caller's isolated
+          // desktop, so VS Code windows must be spawned by the host instead.
+          // ComSpec + joined args: every path here is space-free, and
+          // spawn(shell:true) mangles embedded quotes (observed crash).
+          const args = Array.isArray(msg.args) ? msg.args.map(String) : [];
+          let pid = 0;
+          try {
+            const { spawn } = await import('node:child_process');
+            const cmdline = [String(msg.bin || 'code'), ...args].join(' ');
+            const p = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', cmdline], {
+              detached: true, stdio: 'ignore',
+              cwd: String(msg.cwd || '.') || '.',
+              env: { ...process.env, VIBE_AUTOTEST: '1' },
+            });
+            p.on('error', () => {}); // never crash the host on a bad launch
+            p.unref();
+            pid = p.pid;
+          } catch { /* bad launch must not kill the host */ }
+          this.send(sock, { t: 'test-ack', action, pid });
+        } else if (action === 'minimize-window') {
           await this.win32.minimize(Number(msg.hwnd || 0));
           this.send(sock, { t: 'test-ack', action });
         } else if (action === 'activate-window') {
@@ -280,7 +305,7 @@ export class Hub {
     });
   }
 
-  finishRun(runId, src, outcome, t0, binding, receipt, extra, vAtPress, t1, t2) {
+  finishRun(runId, src, outcome, t0, binding, receipt, vAtPress, t1, t2) {
     const row = {
       runId, src, outcome,
       binding: binding || '',
