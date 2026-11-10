@@ -7,3 +7,12 @@ out/
 obj/
 bin/
 .DS_Store
+
+# raw host-side evidence (accumulates debug sessions; sanitized fixtures
+# tests/fixtures/hooks-real-samples.jsonl + docs evidence docs are committed)
+docs/evidence/phase1/hooks-received.jsonl
+docs/evidence/phase1/raw-hook-events.jsonl
+
+# runtime codex sandbox (generated per run from
+# tests/fixtures/codex-hooks-template.json by the mixed-validation runner)
+tests/fixtures/sandbox-codex/

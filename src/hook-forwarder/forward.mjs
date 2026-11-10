@@ -13,16 +13,25 @@
  *                    for routing; events without it are dropped by the host)
  *   VIBE_PIPE        pipe path, default \\.\pipe\vibe-keyboard-hub
  *   VIBE_FORWARD_TIMEOUT_MS  overall budget, default 1200
+ *
+ *   argv --binding <id> / --pipe <path> override env. Needed because settings
+ *   "env" blocks are NOT inherited by hook subprocesses (observed 2.1.286).
  */
 import net from 'node:net';
 
-const PIPE = process.env.VIBE_PIPE || '\\\\.\\pipe\\vibe-keyboard-hub';
+function argOf(flag) {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : '';
+}
+
+const PIPE = argOf('--pipe') || process.env.VIBE_PIPE || '\\\\.\\pipe\\vibe-keyboard-hub';
 const BUDGET_MS = Number(process.env.VIBE_FORWARD_TIMEOUT_MS || 1200);
 const CONNECT_MS = 250;
 const ACK_MS = 300;
 
 const started = Date.now();
-const binding = process.env.VIBE_BINDING_ID || '';
+const binding = argOf('--binding') || process.env.VIBE_BINDING_ID || '';
+const SRC = argOf('--src') || 'claude-code';
 
 function finish(code) {
   try { process.exit(code); } catch { /* already exiting */ }
@@ -45,7 +54,7 @@ process.stdin.on('end', () => {
   // bodies, no transcript paths, no absolute cwd (basename only).
   const evt = {
     t: 'hook',
-    src: 'claude-code',
+    src: SRC,
     binding,
     session: typeof payload.session_id === 'string' ? payload.session_id : '',
     event: typeof payload.hook_event_name === 'string' ? payload.hook_event_name : 'Unknown',

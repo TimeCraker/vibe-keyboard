@@ -5,7 +5,8 @@
  * Runs REAL `claude -p` sessions in sandbox workspaces with:
  *   - hooks injected via `--settings` (a temporary generated settings file,
  *     never touching user config; reversible by deleting the temp file)
- *   - VIBE_BINDING_ID env so the forwarder can route
+ *   - routing via forwarder argv (--binding): settings "env" blocks are NOT
+ *     inherited by hook subprocesses (observed 2.1.286)
  *   - our MCP permission server as the official permission host, deciding
  *     allow/deny per scenario
  *
@@ -30,15 +31,22 @@ const MCP = path.join(ROOT, 'tests/mcp-permission-server.mjs');
 const RAW = path.join(ROOT, 'docs/evidence/phase1/raw-hook-events.jsonl');
 mkdirSync(path.dirname(RAW), { recursive: true });
 
-// Windows pipe path JSON-escaped for the settings file.
-const PIPE = '\\\\\\\\.\\\\pipe\\\\vibe-keyboard-hub';
-
 function hooksSettings(binding) {
   // Absolute forwarder path, forward slashes work in Git Bash hook shell.
+  // Sync hooks + argv routing. Observed on 2.1.286: settings "env" blocks are
+  // NOT inherited by hook subprocesses, and async hooks get killed when
+  // short-lived -p sessions exit (0-1 of ~10 events delivered). Sync costs
+  // ~60ms/event (node startup + local pipe ack); forwarder self-limits at
+  // 1.2s so blocking stays bounded.
   const fwdNix = FWD.replace(/\\/g, '/');
-  const hook = `node "${fwdNix}"`;
-  const mk = (ev) => [{ hooks: [{ type: 'command', command: hook, async: true, timeout: 3 }] }];
+  const hook = `node ${fwdNix} --binding ${binding}`;
+  const mk = (ev) => [{ hooks: [{ type: 'command', command: hook, timeout: 10 }] }];
   return {
+    // Double safety: ask rules force a prompt even if some layer allows
+    // these commands. The real fix is --permission-mode manual in the
+    // command line: -p defaults to auto mode whose classifier auto-allows
+    // low-risk commands (observed: echo/node -e ran with no prompt at all).
+    permissions: { ask: ['Bash(echo vibe-ok)', 'Bash(node -e*)'] },
     hooks: {
       SessionStart: mk(),
       UserPromptSubmit: mk(),
@@ -52,7 +60,6 @@ function hooksSettings(binding) {
       Notification: mk(),
       SessionEnd: mk(),
     },
-    env: { VIBE_BINDING_ID: binding, VIBE_PIPE: PIPE },
   };
 }
 
@@ -81,17 +88,22 @@ function runClaude(scenario) {
     const cwd = path.join(ROOT, 'tests/fixtures', scenario.sandbox);
 
     const prompt = scenario.prompt;
-    const q = (s) => `"${s}"`;
+    // Prompt goes via stdin (no quotes); every path used here is guaranteed
+    // space-free (repo + os.tmpdir()), so the cmdline needs NO embedded
+    // quotes — node would otherwise escape them and cmd would pass literal
+    // backslash-quotes to claude (observed: "Settings file not found").
+    const promptFile = settings.replace(/.json$/, '-prompt.txt');
+    writeFileSync(promptFile, prompt, 'utf8');
     const cmdline = [
-      'claude', '-p', q(prompt),
-      '--settings', q(settings),
-      '--mcp-config', q(mcp),
+      'claude', '-p', '--settings', settings, '--mcp-config', mcp,
+      '--permission-mode', 'manual',
       '--permission-prompt-tool', 'mcp__vibeperm__permission_prompt',
+      '<', promptFile,
     ].join(' ');
     const cp = spawn(
       process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
       ['/d', '/s', '/c', cmdline],
-      { cwd, env: { ...process.env, VIBE_BINDING_ID: binding }, windowsHide: true },
+      { cwd, env: { ...process.env, VIBE_BINDING_ID: binding, VIBE_PIPE: '\\\\.\\pipe\\vibe-keyboard-hub' }, windowsHide: true },
     );
     let out = '';
     cp.stdout.on('data', (d) => { out += d; });
