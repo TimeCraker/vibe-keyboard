@@ -13,3 +13,5 @@
 [产品定义白皮书与 BRD · 方屏大键版 · 评审修订](docs/Vibe-Keyboard-BRD.pdf)
 
 BRD 记录有线功能原型的需求、布局和验收口径。首发三模方向见上方项目阶段。
+
+[技术栈与架构 PRD](docs/technical-stack-prd.md)记录实现选型、软硬件协议、阶段验收和外包交付。
