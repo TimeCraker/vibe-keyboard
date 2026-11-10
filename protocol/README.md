@@ -17,7 +17,7 @@
 
 | `t` | 字段 | 说明 |
 | --- | --- | --- |
-| `hook` | `src, binding, session, event, tool, toolUseId, notifyType, stopReason, errorKind, cwdName, ts, fwdMs` | Hook 转发器限时上报的脱敏事件。`event` 取 Claude Code 原生 Hook 事件名 |
+| `hook` | `src, binding, session, event, tool, toolUseId, notifyType, stopReason, errorKind, cwdName, ts, fwdMs` | Hook 转发器限时上报的脱敏事件。`event` 取 Agent 原生 Hook 事件名：`src:"claude-code"` 为 Claude Code Hook；`src:"codex"` 为 Codex CLI hooks.json（事件名与 Claude Code 同构，缺 SessionEnd/StopFailure 等，见 docs/evidence/phase1/codex-validation.md） |
 | `hello` | `role, windowId, vscode, pid` | 扩展窗口实例登记；`role:"extension"` |
 | `window-bound` | `windowId, hwnd, focused, processName` | 扩展绑定命令在前台采集的 HWND 与校验结果 |
 | `terminal` | `windowId, binding, name, action:"add"\|"remove"` | 扩展管理的终端绑定上报 |

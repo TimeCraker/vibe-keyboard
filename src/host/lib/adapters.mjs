@@ -38,25 +38,35 @@ export function claudeCodeAdapter(raw) {
 }
 
 /**
- * Codex notify payload → unified event.
+ * Codex CLI hook event → unified event.
  *
- * Codex (26.x store CLI) exposes a single `notify` hook that fires on turn
- * completion; permission waits are NOT observable with the current user
- * config (their notify slot is already in use). Until Codex grows richer
- * hooks we can only mark turns completed and otherwise show unknown.
+ * Verified against the official Codex hooks docs (developers.openai.com/
+ * codex/hooks, CLI 0.167.0): hooks.json / config.toml [hooks] layers, stdin
+ * payload with the same field names as Claude Code (session_id,
+ * hook_event_name, tool_name, tool_use_id...). Events that Claude Code has
+ * but Codex lacks: SessionEnd, StopFailure, PostToolUseFailure,
+ * PermissionDenied, Notification — session exit and API failures therefore
+ * degrade to unknown plus waiting-timeout expiry (documented gap, see
+ * docs/evidence/phase1/codex-validation.md).
  */
 export function codexAdapter(raw) {
   const base = {
     agent: 'codex',
     binding: raw.binding,
     session: raw.session || '',
-    short: raw.short || raw.binding,
+    short: raw.cwdName || raw.binding,
     ts: raw.ts || Date.now(),
+    toolUseId: raw.toolUseId || '',
+    tool: raw.tool || '',
     note: '',
   };
-  switch (raw.kind) {
-    case 'turn-complete': return { ...base, kind: 'turn-end' };
-    case 'agent-start': return { ...base, kind: 'started' };
+  switch (raw.event) {
+    case 'SessionStart': return { ...base, kind: 'started' };
+    case 'UserPromptSubmit': return { ...base, kind: 'prompt' };
+    case 'PreToolUse': return { ...base, kind: 'tool-start' };
+    case 'PermissionRequest': return { ...base, kind: 'permission' };
+    case 'PostToolUse': return { ...base, kind: 'tool-end' };
+    case 'Stop': return { ...base, kind: 'turn-end' };
     default: return { ...base, kind: 'unknown-signal' };
   }
 }

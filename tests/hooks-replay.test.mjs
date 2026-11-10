@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StateMachine } from '../src/host/lib/statemachine.mjs';
-import { claudeCodeAdapter } from '../src/host/lib/adapters.mjs';
+import { claudeCodeAdapter, codexAdapter } from '../src/host/lib/adapters.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -59,6 +59,51 @@ test('allow flow: 等待 → 允许 → 完成 → 退出', () => {
   assert.ok(states.includes('waiting'), 'must pass through waiting');
   assert.equal(sm.currentTarget(20000).ok, false);
   assert.equal(sm.currentTarget(20000).reason, 'empty');
+});
+
+// ------------------------------------------------------------- codex adapter
+
+function codexFeed(sm, events) {
+  for (const e of events) {
+    const unified = codexAdapter(e);
+    if (unified) sm.apply(unified);
+  }
+}
+
+test('codex: PermissionRequest 入队，tool-end + Stop 解除（无 SessionEnd 事件）', () => {
+  const trs = [];
+  const sm = new StateMachine({ onTransition: (t) => trs.push(t) });
+  codexFeed(sm, [
+    hook('SessionStart', { src: 'codex' }),
+    hook('UserPromptSubmit', { src: 'codex' }),
+    hook('PreToolUse', { src: 'codex', tool: 'Bash', toolUseId: 'toolu_c1' }),
+    hook('PermissionRequest', { src: 'codex', tool: 'Bash' }),
+    hook('PostToolUse', { src: 'codex', tool: 'Bash', toolUseId: 'toolu_c1' }),
+    hook('Stop', { src: 'codex' }),
+  ]);
+  const states = trs.map((t) => t.to.split('@')[0]);
+  assert.ok(states.includes('waiting'), 'codex permission wait enqueues');
+  assert.ok(states.includes('completed'), 'codex Stop completes the turn');
+  assert.equal(sm.currentTarget(20000).reason, 'empty');
+});
+
+test('codex: 无解除事件时按 waiting 过期策略出局', () => {
+  const sm = new StateMachine({});
+  codexFeed(sm, [
+    hook('SessionStart', { src: 'codex' }),
+    hook('PermissionRequest', { src: 'codex', tool: 'Bash' }),
+  ]);
+  assert.equal(sm.currentTarget(20000).ok, true, 'waiting before expiry');
+  assert.equal(sm.currentTarget(Date.now() + 11 * 60 * 1000).reason, 'expired', 'expires like Claude sessions');
+});
+
+test('codex: 未知事件不改状态（API 失败等缺口保持原状走 unknown 兜底）', () => {
+  const sm = new StateMachine({});
+  codexFeed(sm, [
+    hook('SessionStart', { src: 'codex' }),
+    hook('TurnAborted', { src: 'codex' }),
+  ]);
+  assert.equal(sm.currentTarget(20000).ok, false, 'no waiting from unknown signal');
 });
 
 test('deny flow: 等待 → 拒绝（无工具完成）→ Stop 清除', () => {

@@ -131,34 +131,69 @@ function bindWindows() {
   console.log('[run-g0] 等待两个窗口完成绑定 (window-bound)...');
 }
 
+// Automated binding: activate each sandbox-titled VS Code window via
+// activate-window.ps1, then broadcast bind-now (hub forwards to every
+// extension) — only the foreground window passes the focus checks inside
+// bindWindowCommand. Falls back to the manual prompt above on failure.
+async function autoBindWindows() {
+  const ps1 = path.join(ROOT, 'scripts/ps/activate-window.ps1');
+  const deadline = Date.now() + 180000;
+  const boundSb = new Set();
+  while (Date.now() < deadline && boundSb.size < 2) {
+    for (const sb of ['sandbox-A', 'sandbox-B']) {
+      if (boundSb.has(sb)) continue;
+      const act = spawnSync('powershell.exe',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-TitlePart', sb],
+        { encoding: 'utf8', timeout: 15000 });
+      const line = (act.stdout || '').trim().split('\n').pop() || '';
+      if (!line.startsWith('ACTIVATED')) { console.log(`[run-g0] activate ${sb}: ${line || act.stderr?.trim() || 'no output'}`); continue; }
+      await sleep(600);
+      send({ t: 'test-control', action: 'bind-now' });
+      await sleep(1500);
+      const nowBound = [...windows.values()].filter((w) => w.hwnd).length;
+      if (nowBound > boundSb.size) { boundSb.add(sb); console.log(`[run-g0] auto-bound window for ${sb} (${line.slice(10, 60)})`); }
+    }
+    if (boundSb.size < 2) await sleep(2000);
+  }
+  return boundSb.size === 2;
+}
+
 async function startSessionIn(binding, sandbox, { duplicateName, extraArgs = '' } = {}) {
   const cwd = path.join(ROOT, 'tests/fixtures', sandbox);
-  const settings = makeSessionSettings(binding);
-  const mcp = makeMcpConfig(binding);
+  const settingsPath = writeTemp(`settings-${binding}`, makeSessionSettings(binding));
+  const mcpPath = writeTemp(`mcp-${binding}`, makeMcpConfig(binding));
+  // CJK prompt via stdin redirect — the extension executes this command line
+  // through cmd /s /c, where every path must stay quote-free (all space-free)
+  // and inline quoted text gets mangled by node/cmd escaping.
+  const promptPath = settingsPath.replace(/\.json$/, '-prompt.txt');
+  writeFileSync(promptPath, '请用 Bash 工具执行命令 echo vibe-ok，除此之外什么都不要做，不要读文件、不要重试，完成后立即结束回复。', 'utf8');
   const command = [
-    'claude', '-p', '"请用 Bash 工具执行命令 echo vibe-ok，除此之外什么都不要做，不要读文件、不要重试，完成后立即结束回复。"',
-    '--settings', JSON.stringify(settings), '--mcp-config', JSON.stringify(mcp),
+    'claude', '-p', '--settings', settingsPath, '--mcp-config', mcpPath,
+    '--permission-mode', 'manual',
     '--permission-prompt-tool', 'mcp__vibeperm__permission_prompt',
+    '<', promptPath,
     extraArgs,
   ].join(' ');
   send({ t: 'test-control', action: 'start-session', binding, cwd, command, duplicateName });
-  return { settings, mcp };
+  return { settingsPath, mcpPath };
 }
 
 import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 function makeSessionSettings(binding) {
   const fwd = path.join(ROOT, 'src/hook-forwarder/forward.mjs').replace(/\\/g, '/');
-  const mk = () => [{ hooks: [{ type: 'command', command: `node "${fwd}"`, async: true, timeout: 3 }] }];
+  // Sync + argv routing: settings "env" blocks are NOT inherited by hook
+  // subprocesses and async hooks die with short -p sessions (observed
+  // 2.1.286 — same fix as capture-samples.mjs). The extension's terminal
+  // env injection stays as a second routing path for real sessions.
+  const mk = () => [{ hooks: [{ type: 'command', command: `node ${fwd} --binding ${binding}`, timeout: 10 }] }];
   return {
-    tmpFile: true,
     hooks: {
       SessionStart: mk(), UserPromptSubmit: mk(), PreToolUse: mk(),
       PermissionRequest: mk(), PostToolUse: mk(), PostToolUseFailure: mk(),
       PermissionDenied: mk(), Stop: mk(), StopFailure: mk(), Notification: mk(),
       SessionEnd: mk(),
     },
-    env: { VIBE_BINDING_ID: binding, VIBE_PIPE: PIPE },
   };
 }
 function makeMcpConfig(binding) {
@@ -185,7 +220,8 @@ const csvPath = path.join(ROOT, 'docs/evidence/phase1/runs', `g0-auto-${new Date
 async function main() {
   mkdirSync(path.dirname(csvPath), { recursive: true });
   launchWindows();
-  bindWindows();
+  const autoOk = await autoBindWindows().catch(() => false);
+  if (!autoOk) bindWindows();
   const okBoth = await waitFor(() => windows.size >= 2 && [...windows.values()].every((w) => w.hwnd), 240000, 500);
   if (!okBoth) {
     console.error('[run-g0] 两窗口未完成绑定（需要手动执行 Vibe: 绑定本窗口），退出');
