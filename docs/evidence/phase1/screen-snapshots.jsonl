@@ -104,3 +104,4 @@
 {"v":79,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794317078383,"ts":1794317078383}
 {"v":80,"current":{"short":"sandbox-B","state":"等待权限","stateKey":"waiting","expired":false,"since":1794317095213,"pos":1,"total":1,"binding":"g027c0db","agent":"claude-code"},"queue":1,"keyLabel":"Ctrl+Alt+V","generatedAt":1794317095214,"ts":1794317095214}
 {"v":81,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794317097228,"ts":1794317097228}
+{"v":1,"current":null,"queue":0,"keyLabel":"Ctrl+Alt+V","generatedAt":1794320774481,"ts":1794320774481}
